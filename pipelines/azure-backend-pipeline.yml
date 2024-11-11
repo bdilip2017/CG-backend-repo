@@ -1,0 +1,27 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - checkout: self
+  - task: Maven@3
+    inputs:
+      goals: 'clean install'
+  - task: Docker@2
+    inputs:
+      command: 'buildAndPush'
+      containerRegistry: 'YourAzureContainerRegistryServiceConnection'
+      repository: 'backend-app'
+      Dockerfile: 'Dockerfile'
+      tags: '$(Build.BuildId)'
+  - task: Kubernetes@1
+    inputs:
+      connectionType: 'Kubernetes Service Connection'
+      namespace: 'default'
+      command: 'apply'
+      useConfigurationFile: true
+      configuration: 'k8s/backend-deployment.yml'
