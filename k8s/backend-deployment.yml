@@ -1,50 +1,49 @@
+# Backend Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend
+  name: backend-app
+  labels:
+    app: backend-app
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: backend
+      app: backend-app
   template:
     metadata:
       labels:
-        app: backend
+        app: backend-app
     spec:
       containers:
-      - name: backend
-        image: <ACR_URI>/backend-app:$(Build.BuildId)
+      - name: backend-app
+        image: <ACR_NAME>.azurecr.io/backend-app:latest
+        ports:
+        - containerPort: 8080
         env:
-          - name: DB_HOST
-            value: "<PostgreSQL_URI>"
-          - name: DB_USER
-            valueFrom:
-              secretKeyRef:
-                name: db-credentials
-                key: username
-          - name: DB_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: db-credentials
-                key: password
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
         resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
           limits:
             cpu: "500m"
-            memory: "512Mi"
-          requests:
-            cpu: "250m"
-            memory: "256Mi"
+            memory: "1024Mi"
+
 ---
-apiVersion: autoscaling/v2beta2
+# Backend Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: backend-hpa
+  name: backend-app-hpa
+  labels:
+    app: backend-app
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: backend
+    name: backend-app
   minReplicas: 2
   maxReplicas: 5
   metrics:
@@ -53,4 +52,21 @@ spec:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 50
+        averageUtilization: 50  # Scale if CPU utilization is above 50%
+
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-app-service
+  labels:
+    app: backend-app
+spec:
+  type: ClusterIP  # Internal access only; frontend accesses this service
+  selector:
+    app: backend-app
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
