@@ -1,0 +1,86 @@
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-app
+  labels:
+    app: backend-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-app
+  template:
+    metadata:
+      labels:
+        app: backend-app
+    spec:
+      containers:
+      - name: backend-app
+        image: <ACR_NAME>.azurecr.io/backend-app:latest
+        ports:
+          - containerPort: 8080
+        env:
+          - name: SPRING_PROFILES_ACTIVE
+            value: "prod"
+          - name: SPRING_DATASOURCE_URL
+            value: "jdbc:postgresql://${POSTGRES_HOST}:5432/${POSTGRES_DB}"
+          - name: SPRING_DATASOURCE_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: postgres-credentials
+                key: POSTGRES_USER
+          - name: SPRING_DATASOURCE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-credentials
+                key: POSTGRES_PASSWORD
+        imagePullSecrets:
+          - name: acr-secret
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "1024Mi"
+
+---
+# Backend Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-app-hpa
+  labels:
+    app: backend-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-app
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50  # Scale if CPU utilization is above 50%
+
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-app-service
+  labels:
+    app: backend-app
+spec:
+  type: ClusterIP  # Internal access only; frontend accesses this service
+  selector:
+    app: backend-app
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
