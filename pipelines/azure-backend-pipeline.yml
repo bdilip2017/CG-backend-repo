@@ -13,10 +13,7 @@ stages:
       - template: templates/build-and-deploy-template.yml
         parameters:
           environment: "dev"
-          acrSecretName: "Dev-ACR-Secret"
-          acrLoginServer: "Dev-ACR-Login-Server"
-          postgresHostSecret: "Dev-Postgres-Host"
-          postgresDbSecret: "Dev-Postgres-DB"
+          acrLoginServer: "ACR-Login-Server"
           imageTag: "dev"
 
   - stage: Staging
@@ -26,10 +23,7 @@ stages:
       - template: templates/build-and-deploy-template.yml
         parameters:
           environment: "staging"
-          acrSecretName: "Staging-ACR-Secret"
-          acrLoginServer: "Staging-ACR-Login-Server"
-          postgresHostSecret: "Staging-Postgres-Host"
-          postgresDbSecret: "Staging-Postgres-DB"
+          acrLoginServer: "ACR-Login-Server"
           imageTag: "staging"
 
   - stage: Prod
@@ -39,8 +33,5 @@ stages:
       - template: templates/build-and-deploy-template.yml
         parameters:
           environment: "prod"
-          acrSecretName: "Prod-ACR-Secret"
-          acrLoginServer: "Prod-ACR-Login-Server"
-          postgresHostSecret: "Prod-Postgres-Host"
-          postgresDbSecret: "Prod-Postgres-DB"
+          acrLoginServer: "ACR-Login-Server"
           imageTag: "prod"

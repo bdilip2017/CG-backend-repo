@@ -1,9 +1,6 @@
 parameters:
   environment: ""
-  acrSecretName: ""
   acrLoginServer: ""
-  postgresHostSecret: ""
-  postgresDbSecret: ""
   imageTag: ""
 
 jobs:
@@ -18,7 +15,7 @@ jobs:
         inputs:
           azureSubscription: $(azureSubscription)
           KeyVaultName: "my-${{ parameters.environment }}-keyvault"
-          SecretsFilter: "${{ parameters.environment }}-ACR-Login-Server,${{ parameters.environment }}-Postgres-Host,${{ parameters.environment }}-Postgres-DB,${{ parameters.environment }}-Postgres-User,${{ parameters.environment }}-Postgres-Password"
+          SecretsFilter: "${{ parameters.environment }}-${{ parameters.acrLoginServer }},${{ parameters.environment }}-Postgres-Host,${{ parameters.environment }}-Postgres-DB,${{ parameters.environment }}-Postgres-User,${{ parameters.environment }}-Postgres-Password"
 
       - task: UseJava@1
         inputs:
@@ -35,18 +32,18 @@ jobs:
         displayName: "Build and Push Docker Image to $(parameters.environment) ACR"
         inputs:
           containerRegistry: "ACR-Service-Connection"
-          repository: "${{ parameters.environment }}-ACR-Login-Server/backend-app"
+          repository: "${{ parameters.environment }}-${{ parameters.acrLoginServer }}/backend-app"
           command: "buildAndPush"
           Dockerfile: "./Dockerfile"
           tags: "$(parameters.imageTag)"
 
       # Step 3: Replace Placeholders in Kubernetes Manifest
       - script: |
-          sed -i "s|<ACR_LOGIN_SERVER>|$(my-${{ parameters.environment }}-keyvault-ACR-Login-Server)|g" ./k8s/backend-deployment.yml
-          sed -i "s|<DB_HOST>|$(my-${{ parameters.environment }}-keyvault-Postgres-Host)|g" ./k8s/backend-deployment.yml
-          sed -i "s|<DB_NAME>|$(my-${{ parameters.environment }}-keyvault-Postgres-DB)|g" ./k8s/backend-deployment.yml
-          sed -i "s|<DB_USER>|$(my-${{ parameters.environment }}-keyvault-Postgres-User)|g" ./k8s/backend-deployment.yml
-          sed -i "s|<DB_PASSWORD>|$(my-${{ parameters.environment }}-keyvault-Postgres-Password)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<ACR_LOGIN_SERVER>|$(my-${{ parameters.environment }}-${{ parameters.acrLoginServer }})|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_HOST>|$(my-${{ parameters.environment }}-Postgres-Host)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_NAME>|$(my-${{ parameters.environment }}-Postgres-DB)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_USER>|$(my-${{ parameters.environment }}-Postgres-User)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_PASSWORD>|$(my-${{ parameters.environment }}-Postgres-Password)|g" ./k8s/backend-deployment.yml
         displayName: "Replace Placeholders in $(parameters.environment) Manifest"
 
       # Step 5: Deploy to AKS
