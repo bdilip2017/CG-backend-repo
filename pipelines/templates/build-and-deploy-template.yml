@@ -1,0 +1,59 @@
+parameters:
+  environment: ""
+  acrSecretName: ""
+  acrLoginServer: ""
+  postgresHostSecret: ""
+  postgresDbSecret: ""
+  imageTag: ""
+
+jobs:
+  - job: BuildAndDeploy
+    displayName: "Build and Deploy for $(parameters.environment)"
+    steps:
+      # Step 1: Checkout Code
+      - task: Checkout@1
+
+      # Step 2: Retrieve Secrets from Azure Key Vault
+      - task: AzureKeyVault@2
+        inputs:
+          azureSubscription: $(azureSubscription)
+          KeyVaultName: "my-${{ parameters.environment }}-keyvault"
+          SecretsFilter: "${{ parameters.environment }}-ACR-Login-Server,${{ parameters.environment }}-Postgres-Host,${{ parameters.environment }}-Postgres-DB,${{ parameters.environment }}-Postgres-User,${{ parameters.environment }}-Postgres-Password"
+
+      - task: UseJava@1
+        inputs:
+          versionSpec: '11'
+          jdkArchitectureOption: 'x64'
+
+      - script: |
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests
+        displayName: 'Build Spring Boot Application'
+
+      # Step 3: Build and Push Docker Image
+      - task: Docker@2
+        displayName: "Build and Push Docker Image to $(parameters.environment) ACR"
+        inputs:
+          containerRegistry: "ACR-Service-Connection"
+          repository: "${{ parameters.environment }}-ACR-Login-Server/backend-app"
+          command: "buildAndPush"
+          Dockerfile: "./Dockerfile"
+          tags: "$(parameters.imageTag)"
+
+      # Step 3: Replace Placeholders in Kubernetes Manifest
+      - script: |
+          sed -i "s|<ACR_LOGIN_SERVER>|$(my-${{ parameters.environment }}-keyvault-ACR-Login-Server)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_HOST>|$(my-${{ parameters.environment }}-keyvault-Postgres-Host)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_NAME>|$(my-${{ parameters.environment }}-keyvault-Postgres-DB)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_USER>|$(my-${{ parameters.environment }}-keyvault-Postgres-User)|g" ./k8s/backend-deployment.yml
+          sed -i "s|<DB_PASSWORD>|$(my-${{ parameters.environment }}-keyvault-Postgres-Password)|g" ./k8s/backend-deployment.yml
+        displayName: "Replace Placeholders in $(parameters.environment) Manifest"
+
+      # Step 5: Deploy to AKS
+      - task: Kubernetes@1
+        inputs:
+          connectionType: 'Kubernetes Service Connection'
+          namespace: "$(parameters.environment)"
+          command: 'apply'
+          useConfigurationFile: true
+          configuration: './k8s/backend-deployment.yml'

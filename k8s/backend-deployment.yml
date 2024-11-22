@@ -17,24 +17,18 @@ spec:
     spec:
       containers:
       - name: backend-app
-        image: <ACR_NAME>.azurecr.io/backend-app:latest
+        image: <ACR_LOGIN_SERVER>/backend-app:latest
         ports:
           - containerPort: 8080
         env:
           - name: SPRING_PROFILES_ACTIVE
             value: "prod"
           - name: SPRING_DATASOURCE_URL
-            value: "jdbc:postgresql://${POSTGRES_HOST}:5432/${POSTGRES_DB}"
+            value: <DB_HOST>
           - name: SPRING_DATASOURCE_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: postgres-credentials
-                key: POSTGRES_USER
+            value: <DB_USER>
           - name: SPRING_DATASOURCE_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: postgres-credentials
-                key: POSTGRES_PASSWORD
+            value: <DB_PASSWORD>
         imagePullSecrets:
           - name: acr-secret
         resources:

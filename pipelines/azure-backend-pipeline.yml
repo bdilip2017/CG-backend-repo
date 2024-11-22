@@ -1,117 +1,46 @@
-# azure-pipelines-backend.yml
 trigger:
   branches:
     include:
       - main
 
+pool:
+  vmImage: 'ubuntu-latest'
+
 stages:
-  - stage: Build
+  - stage: Dev
+    displayName: "Build and Deploy to Dev"
     jobs:
-      - job: BuildBackend
-        displayName: "Build Backend"
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - task: UseJava@1
-            inputs:
-              versionSpec: '11'
-              jdkArchitectureOption: 'x64'
+      - template: templates/build-and-deploy-template.yml
+        parameters:
+          environment: "dev"
+          acrSecretName: "Dev-ACR-Secret"
+          acrLoginServer: "Dev-ACR-Login-Server"
+          postgresHostSecret: "Dev-Postgres-Host"
+          postgresDbSecret: "Dev-Postgres-DB"
+          imageTag: "dev"
 
-          - script: |
-              chmod +x mvnw
-              ./mvnw clean package -DskipTests
-            displayName: 'Build Spring Boot Application'
-
-          - task: Docker@2
-            inputs:
-              command: 'buildAndPush'
-              repository: '$(containerRegistry)/backend-app'
-              Dockerfile: '**/Dockerfile'
-              tags: '$(Build.BuildId)'
-              containerRegistry: '$(containerRegistryServiceConnection)'
-
-  - stage: Deploy
-    dependsOn: Build
+  - stage: Staging
+    displayName: "Build and Deploy to Staging"
+    dependsOn: Dev
     jobs:
-      - deployment: DeployToDev
-        displayName: "Deploy Backend to Dev"
-        environment: 'dev'
-        pool:
-          vmImage: 'ubuntu-latest'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - task: Kubernetes@1
-                  inputs:
-                    connectionType: 'Azure Resource Manager'
-                    azureSubscription: '$(azureSubscription)'
-                    azureResourceGroup: '$(aksResourceGroup)'
-                    kubernetesCluster: '$(aksClusterNameDev)'
-                    namespace: 'dev'
-                    command: 'apply'
-                    useConfigurationFile: true
-                    configurationFile: 'k8s/backend-deployment.yaml'
-        variables:
-          - name: containerRegistry
-            value: 'youracrname.azurecr.io'  # Dev ACR
-          - name: aksClusterNameDev
-            value: 'aks-cluster-dev'
+      - template: templates/build-and-deploy-template.yml
+        parameters:
+          environment: "staging"
+          acrSecretName: "Staging-ACR-Secret"
+          acrLoginServer: "Staging-ACR-Login-Server"
+          postgresHostSecret: "Staging-Postgres-Host"
+          postgresDbSecret: "Staging-Postgres-DB"
+          imageTag: "staging"
 
-      - deployment: DeployToStaging
-        displayName: "Deploy Backend to Staging"
-        environment: 'staging'
-        dependsOn: DeployToDev
-        pool:
-          vmImage: 'ubuntu-latest'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - task: Kubernetes@1
-                  inputs:
-                    connectionType: 'Azure Resource Manager'
-                    azureSubscription: '$(azureSubscription)'
-                    azureResourceGroup: '$(aksResourceGroup)'
-                    kubernetesCluster: '$(aksClusterNameStaging)'
-                    namespace: 'staging'
-                    command: 'apply'
-                    useConfigurationFile: true
-                    configurationFile: 'k8s/backend-deployment.yaml'
-        variables:
-          - name: containerRegistry
-            value: 'youracrname.azurecr.io'  # Staging ACR
-          - name: aksClusterNameStaging
-            value: 'aks-cluster-staging'
-
-      - deployment: DeployToProd
-        displayName: "Deploy Backend to Production"
-        environment: 'prod'
-        dependsOn: DeployToStaging
-        pool:
-          vmImage: 'ubuntu-latest'
-        strategy:
-          runOnce:
-            preDeploy:
-              - task: ManualValidation@0
-                inputs:
-                  instructions: 'Approve to proceed with Production deployment.'
-                  onTimeout: 'reject'  # Rejects if not approved within the timeout
-                  timeout: '300'        # 30 minutes for approval
-            deploy:
-              steps:
-                - task: Kubernetes@1
-                  inputs:
-                    connectionType: 'Azure Resource Manager'
-                    azureSubscription: '$(azureSubscription)'
-                    azureResourceGroup: '$(aksResourceGroup)'
-                    kubernetesCluster: '$(aksClusterNameProd)'
-                    namespace: 'prod'
-                    command: 'apply'
-                    useConfigurationFile: true
-                    configurationFile: 'k8s/backend-deployment.yaml'
-        variables:
-          - name: containerRegistry
-            value: 'acrname.azurecr.io'  # Prod ACR
-          - name: aksClusterNameProd
-            value: 'aks-cluster-prod'
+  - stage: Prod
+    displayName: "Build and Deploy to Prod"
+    dependsOn: Staging
+    jobs:
+      - template: templates/build-and-deploy-template.yml
+        parameters:
+          environment: "prod"
+          acrSecretName: "Prod-ACR-Secret"
+          acrLoginServer: "Prod-ACR-Login-Server"
+          postgresHostSecret: "Prod-Postgres-Host"
+          postgresDbSecret: "Prod-Postgres-DB"
+          imageTag: "prod"
